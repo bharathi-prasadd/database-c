@@ -1,43 +1,14 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include "main.h"
 
-/*------                          Enums and structs  ----------*/
-typedef struct {
-    char *buffer;
-    size_t buffer_length;
-    ssize_t input_length;
-} InputBuffer;
 
-typedef enum { STATEMENT_INSERT, STATEMENT_SELECT } StatementType;
-
-typedef struct {
-    StatementType type;
-} Statement;
-
-typedef enum {
-    META_COMMAND_SUCCESS,
-    META_COMMAND_UNRECOGNIZED_COMMAND
-}MetaCommandResult;
-
-typedef enum {
-    PREPARE_SUCCESS,
-    PREPARE_UNRECOGNIZED_STATEMENT
-}PrepareResult;
-
-/*-------------         Function declarations       --------------*/
-
-void display_prompt(void);
-InputBuffer* new_input_buffer(void);
-void close_input_buffer(InputBuffer* buffer);
-void read_line(InputBuffer* buffer);
-MetaCommandResult do_meta_command(InputBuffer *);
-PrepareResult prepare_statement(char *, Statement *);
-void execute_statement(Statement *statement);
 
 int main()
 {
+    Table *table = new_table();
     while(true)
     {
         display_prompt();
@@ -45,7 +16,7 @@ int main()
         read_line(buffer);
         if (buffer->buffer[0] == '.')                               //if meta command execute it
         {
-            switch(do_meta_command(buffer)) {
+            switch(do_meta_command(table, buffer)) {
                 case(META_COMMAND_SUCCESS):
                     break;
                 case(META_COMMAND_UNRECOGNIZED_COMMAND):
@@ -56,19 +27,26 @@ int main()
             }
         }
         else {
-
             Statement statement;
             switch (prepare_statement(buffer->buffer, &statement)) {
                 case(PREPARE_SUCCESS):
-                    execute_statement(&statement);
+                {
+                    execute_statement(table, &statement);
                     break;
-                case(PREPARE_UNRECOGNIZED_STATEMENT):
+                }
+                case(PREPARE_SYNTAX_ERROR):
+                {
+                    printf("%s: Invalid syntax\n",buffer->buffer);
+                    break;
+                }
+                    case(PREPARE_UNRECOGNIZED_STATEMENT):
                 {
                     printf("%s : Unrecognized keyword at the start\n",buffer->buffer);
                     break;
                 }
             }
         }
+        close_input_buffer(buffer);
     }
 }
 
@@ -110,50 +88,29 @@ void close_input_buffer(InputBuffer* buffer)
 /* branch over different meta commands and
    execute if it is a valid meta command
 */
-MetaCommandResult do_meta_command(InputBuffer *buffer)
-{
-    if (strcmp(buffer->buffer,".exit") == 0)
-    {
-        close_input_buffer(buffer);
-        exit(EXIT_SUCCESS);
-    }
-    else
-    {
-        printf("%s: Unrecognized meta command\n", buffer->buffer);
-    }
-}
-
 /* branch over valid keywords and
    pass statements type
 */
-PrepareResult prepare_statement(char *buffer, Statement *statement)
+
+
+
+
+Table* new_table(void)
 {
-    /* strncmp is used instead of strcmp because
-       keyword will be followed by arguments
-    */
-    if (strncmp(buffer, "insert", 6) == 0)
+    Table *table = (Table*)malloc(sizeof(Table));
+    table->n_rows = 0;
+    for (int i = 0; i < TABLE_MAX_PAGES; i++)
     {
-        statement->type = STATEMENT_INSERT;
-        return PREPARE_SUCCESS;
+        table->pointer[i] = NULL;
     }
-    else if (strncmp(buffer, "select", 6) == 0)
-    {
-        statement->type = STATEMENT_SELECT;
-        return PREPARE_SUCCESS;
-    }
-    else
-        return PREPARE_UNRECOGNIZED_STATEMENT;
+    return table;
 }
 
-void execute_statement(Statement *statement)
+void free_table(Table *table)
 {
-    if (statement->type = STATEMENT_INSERT)
+    for (int i = 0; table->pointer[i] && i < TABLE_MAX_PAGES; i++)
     {
-        printf("Insertion\n");
+        free(table->pointer[i]);
     }
-    else if (statement->type = STATEMENT_SELECT)
-    {
-        printf("Selection\n");
-    }
-    return;
+    free(table);
 }
